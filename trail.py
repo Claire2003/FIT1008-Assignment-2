@@ -15,7 +15,7 @@ class TrailSplit:
     A split in the trail.
        _____top______
       /              \
-    -<                >-following-
+    -<                >-following- 
       \____bottom____/
     """
 
