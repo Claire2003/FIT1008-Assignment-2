@@ -28,7 +28,7 @@ class DoubleKeyTable(Generic[K1, K2, V]):
     HASH_BASE = 31
 
     def __init__(self, sizes:list|None=None, internal_sizes:list|None=None) -> None:
-        raise NotImplementedError()
+        self.elementCount = 0
 
     def hash1(self, key: K1) -> int:
         """
@@ -65,8 +65,7 @@ class DoubleKeyTable(Generic[K1, K2, V]):
         :raises KeyError: When the key pair is not in the table, but is_insert is False.
         :raises FullError: When a table is full and cannot be inserted.
         """
-        raise NotImplementedError()
-
+        
     def iter_keys(self, key:K1|None=None) -> Iterator[K1|K2]:
         """
         key = None:
@@ -118,13 +117,17 @@ class DoubleKeyTable(Generic[K1, K2, V]):
 
         :raises KeyError: when the key doesn't exist.
         """
-        raise NotImplementedError()
+        if self.__contains__(key,[K1,K2]):
+            first_hash = self.hash1(key[0])
+            return self.hash2(key[1],first_hash)
+        else:
+            raise Exception("KeyError: the key does not exist")
 
     def __setitem__(self, key: tuple[K1, K2], data: V) -> None:
         """
         Set an (key, value) pair in our hash table.
         """
-
+        
         raise NotImplementedError()
 
     def __delitem__(self, key: tuple[K1, K2]) -> None:
