@@ -96,7 +96,64 @@ class Trail:
 
     def follow_path(self, personality: WalkerPersonality) -> None:
         """Follow a path and add mountains according to a personality."""
-        raise NotImplementedError()
+        from personality import PersonalityDecision # Avoid circular import
+        from data_structures.linked_stack import LinkedStack, Node # Use a Linked Stack because we don't know how many mountains there are and Linked variation is easier to resize
+        following_splits = LinkedStack() # Store the following trails of each split. 
+        current_trail = self
+        # Must check if we are not dealing with a finished trail from the start
+        if current_trail.store.following is not None:
+            following_exists = True
+        else:
+            following_exists = False 
+        inside_split = False
+        while following_exists: # We want to end this when there is no more following, or break when walker wants to stop
+            if not following_splits.is_empty():
+                inside_split = True
+            else:
+                inside_split = False
+            if type(current_trail) == Trail:
+                current_trail = current_trail.store
+
+            if type(current_trail) == TrailSplit:
+                following = current_trail.following
+                top = current_trail.top
+                bottom = current_trail.bottom
+                following_splits.push(following)
+                decision = personality.select_branch(top, bottom)
+                if decision == PersonalityDecision.TOP:
+                    current_trail = top
+                    continue
+                elif decision == PersonalityDecision.BOTTOM:
+                    current_trail = bottom
+                    continue
+                elif decision == PersonalityDecision.STOP:
+                    break
+            elif type(current_trail) == TrailSeries:
+                personality.add_mountain(current_trail.mountain)
+                if inside_split and current_trail.following.store == None:
+                    current_trail = following_splits.pop()
+                    continue
+            elif current_trail == None:
+                # skip, don't do anything, just go to following.
+                if inside_split:
+                    current_trail = following_splits.pop()
+                    continue
+                
+
+            # How do we check whether the trail no longer has a following?
+            # 1. It's a series and following is equal to None, or the following is Trail(None)
+            # 2. All splits have been closed. If we reach the following of a split, we can consider it to be closed. Once all splits have been exhausted (splits is empty) and following is a series with following none, trail is over.
+            if following_splits.is_empty():
+                if type(current_trail) == TrailSeries:
+                    if current_trail.following.store == None:
+                        following_exists = False
+                else:
+                    if current_trail.store == None:
+                        following_exists = False
+            if following_exists:
+                current_trail = current_trail.following
+                
+
 
     def collect_all_mountains(self) -> list[Mountain]:
         """Returns a list of all mountains on the trail."""
