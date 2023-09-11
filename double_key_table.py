@@ -29,6 +29,7 @@ class DoubleKeyTable(Generic[K1, K2, V]):
 
     def __init__(self, sizes:list|None=None, internal_sizes:list|None=None) -> None:
         self.elementCount = 0
+        self.table_size 
 
     def hash1(self, key: K1) -> int:
         """
@@ -80,7 +81,20 @@ class DoubleKeyTable(Generic[K1, K2, V]):
         key = None: returns all top-level keys in the table.
         key = x: returns all bottom-level keys for top-level key x.
         """
-        raise NotImplementedError()
+        """        
+        if self.__contains__(key,[K1,K2]):
+            return self.hash1(key)
+        """
+        if key is None:
+        # If key is None, return all top-level keys
+            return list(self.iter_keys())
+        else:
+            # If key is provided, return all bottom-level keys for the given top-level key
+            if key in self:
+                sub_table = self[key]
+                return list(sub_table.iter_keys())
+            else:
+                raise KeyError(f"The key '{key}' does not exist.")
 
     def iter_values(self, key:K1|None=None) -> Iterator[V]:
         """
@@ -117,7 +131,7 @@ class DoubleKeyTable(Generic[K1, K2, V]):
 
         :raises KeyError: when the key doesn't exist.
         """
-        if self.__contains__(key,[K1,K2]):
+        if self.__contains__(key):
             first_hash = self.hash1(key[0])
             return self.hash2(key[1],first_hash)
         else:
