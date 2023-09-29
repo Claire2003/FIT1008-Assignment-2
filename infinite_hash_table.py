@@ -20,8 +20,9 @@ class InfiniteHashTable(Generic[K, V]):
 
     TABLE_SIZE = 27
 
-    def __init__(self,level) -> None:
+    def __init__(self,level,parent=None) -> None:
         self.level = level
+        self.parent = parent
         self.array:ArrayR[tuple[K, V]] = ArrayR(self.TABLE_SIZE) 
 
     def hash(self, key: K) -> int:
@@ -85,7 +86,17 @@ class InfiniteHashTable(Generic[K, V]):
 
         :raises KeyError: when the key doesn't exist.
         """
-        raise NotImplementedError()
+        if self.__contains__(key):
+            index = hash(key)
+            if self.level >= 1 and len(self.sort_keys()) == 2: # if the order is greater than 1 and there are only two entries in ghe hash table
+                #access the parent table and put the value not being deleted there
+                for item in self.sort_keys():
+                    if item != key:
+                        save_key = item
+                self.parent.__setitem__(save_key,self.__getitem__(save_key)) 
+                
+        else:
+            raise KeyError(key)
 
     def __len__(self) -> int:
         raise NotImplementedError()
