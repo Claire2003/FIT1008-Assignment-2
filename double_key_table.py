@@ -30,7 +30,6 @@ class DoubleKeyTable(Generic[K1, K2, V]):
     def __init__(self, sizes:list|None=None, internal_sizes:list|None=None) -> None:
         # Element count is the number of elements in the top table only.
         self.elementCount = 0
-        double_key_table.py-implementation
         if sizes is not None:
             self.TABLE_SIZES = sizes
         self.size_index = 0
@@ -133,7 +132,6 @@ class DoubleKeyTable(Generic[K1, K2, V]):
         key = None: returns all top-level keys in the table.
         key = x: returns all bottom-level keys for top-level key x.
         """
-        double_key_table.py-implementation
         if key == None:
             res = []
             for x in range(self.table_size):
@@ -212,7 +210,6 @@ class DoubleKeyTable(Generic[K1, K2, V]):
 
         :raises KeyError: when the key doesn't exist.
         """
-        double_key_table.py-implementation
         key1, key2 = key
 
         if self.__contains__(key):

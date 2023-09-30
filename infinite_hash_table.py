@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Generic, TypeVar
 
 from data_structures.referential_array import ArrayR
+from data_structures.hash_table import LinearProbeTable
 
 K = TypeVar("K")
 V = TypeVar("V")
@@ -20,10 +21,10 @@ class InfiniteHashTable(Generic[K, V]):
 
     TABLE_SIZE = 27
 
-    def __init__(self,level,parent=None) -> None:
+    def __init__(self,level=0) -> None:
         self.level = level
-        self.parent = parent
-        self.array:ArrayR[tuple[K, V]] = ArrayR(self.TABLE_SIZE) 
+        self.count = 0
+        self.origin:ArrayR[tuple[K, V]] = ArrayR(self.TABLE_SIZE)
 
     def hash(self, key: K) -> int:
         if self.level < len(key):
@@ -36,49 +37,48 @@ class InfiniteHashTable(Generic[K, V]):
 
         :raises KeyError: when the key doesn't exist.
         """
-        key1, key2 = key
-
-        if self.__contains__(key):
-            table_position, sub_table_position = self._linear_probe(key1, key2, False)
-            return self.table[table_position][1].array[1]
-        raise KeyError(key1)
-
-        raise NotImplementedError()
+        positions = self.get_location(key)
+        current = self
+        for pos in positions:
+            current = current.origin[pos][1]
+        return current
 
     def __setitem__(self, key: K, value: V) -> None:
         """
         Set an (key, value) pair in our hash table.
         """
-        index = hash(key)
-        
-        # check the index
-        if self.array[index] != None: 
-            if type(self.array[index][1]) != list: # checking if the index has a value or an array
-                store = self.array[index] # storing the value
-                self.array[index] = None # erasing the value
-                new_key = key[self.level]
-                nextHashTable = InfiniteHashTable(self.level+1)
-                self.array[index] = (new_key, nextHashTable) # adding the 
-                nextHashTable.__setitem__(key, value)
-                nextHashTable.__setitem__(store[0], store[1])
-                """
-                erase value
-                make new value first letter of key
-                make instance of the hashtable class
-                nexthashtable = InfiniteHashTable(self.level+1)
-                add key
-                add erased value
-                """
-                
+        # sub_table.hash = lambda k: self.hash2(k, sub_table) # Set hash function of sub table. 
+
+        # Logic:
+        # First table: Find table position
+        # If theres None, we can enter it.
+        # If theres something there, we should create a new hash table,
+        # For example, lin and linked.
+        # We have lin, but in the first table now we have key l, and value IHT
+        # The following IHT, we have li and value IHT
+        # We create as many IHT's as there are duplicate letters.
+
+        # Start with one iht.
+        # Given the level, if there ends up being duplicate letters, create a new hash table, and reinsert
+        current = self
+        # If it's an iht, we wanna go through it until we find a place to put our key.
+        table_position = current.hash(key)
+
+        while current.origin[table_position] != None: # and current.origin[table_position][0][:current.level + 1] == key[:current.level + 1]
+            if type(current.origin[table_position][1]) != InfiniteHashTable:
+                prev_key, prev_value = current.origin[table_position]
+                next_table = InfiniteHashTable(level=current.level + 1)
+                next_table[prev_key] = prev_value
+                next_table[key] = value
+                current.origin[table_position] = (key[:current.level+1] + "*", next_table)
+                # We use a * to denote that it is not a full word, so that sort keys is easier to do.
+                self.count += 1
+                return
             else:
-                nextHashTable = self.array[index][1]
-                nextHashTable.__setitem__(key, value)
-                """
-                go into next hash table
-                hash second letter of the key
-                """
-        else:
-            self.array[index] = (key,value)
+                current = current.origin[table_position][1]
+                table_position = current.hash(key)
+        current.origin[table_position] = (key, value)
+        self.count += 1
 
     def __delitem__(self, key: K) -> None:
         """
@@ -86,20 +86,47 @@ class InfiniteHashTable(Generic[K, V]):
 
         :raises KeyError: when the key doesn't exist.
         """
-        if self.__contains__(key):
-            index = hash(key)
-            if self.level >= 1 and len(self.sort_keys()) == 2: # if the order is greater than 1 and there are only two entries in ghe hash table
-                #access the parent table and put the value not being deleted there
-                for item in self.sort_keys():
-                    if item != key:
-                        save_key = item
-                self.parent.__setitem__(save_key,self.__getitem__(save_key)) 
-                
-        else:
-            raise KeyError(key)
-
+        positions = self.get_location(key)
+        current_table = self
+        pos_index = 0
+        # Go until the final IHT
+        for pos_index in range(len(positions) - 1):
+            current_table = current_table.origin[positions[pos_index]][1]
+        # Now current_table is the final IHT
+        # Delete
+        current_table.origin[positions[len(positions)-1]] = None
+        # Because the count is all branching elements
+        self.count -= 1
+        # Now we need to check whether deleting causes IHT's to be closed down.
+        isDeleting = True
+        while isDeleting:
+            if current_table == self:
+                break
+            item = None
+            num_elements = 0
+            for element in current_table.origin:
+                if element is not None:
+                    if element[0][len(element[0])-1] != "*":
+                        item = element
+                        num_elements += 1
+            if num_elements <= 1 and item is not None:
+                # We want to store this singular key, value, and insert it after we deleted the IHT.
+                item_key, item_value = item
+                # We need to go until the table before current table, and find current table's position in prev table and delete.
+                prev_table = self
+                for pos in positions[:pos_index]:
+                    prev_table = prev_table.origin[pos][1]
+                prev_table.origin[positions[pos_index]] = None
+                # Have to decrease, because when we insert it will increase.
+                self.count -= 1
+                current_table = prev_table
+                pos_index -= 1
+                self[item_key] = item_value
+            else:
+                isDeleting = False
+        
     def __len__(self) -> int:
-        raise NotImplementedError()
+        return self.count
 
     def __str__(self) -> str:
         """
@@ -107,7 +134,7 @@ class InfiniteHashTable(Generic[K, V]):
 
         Not required but may be a good testing tool.
         """
-        raise NotImplementedError()
+        pass
 
     def get_location(self, key) -> list[int]:
         """
@@ -115,7 +142,21 @@ class InfiniteHashTable(Generic[K, V]):
 
         :raises KeyError: when the key doesn't exist.
         """
-        raise NotImplementedError()
+        # Probably can do with recursion. Base case when key in table is key.
+        # Then when we go back accum. But for now try loop version
+        res = []
+        current_table = self
+        while type(current_table) is InfiniteHashTable:
+            table_position = current_table.hash(key)
+            entry = current_table.origin[table_position]
+            if entry is None:
+                raise KeyError
+            res.append(table_position)
+            current_table = entry[1]
+        entry_key, entry_value = entry
+        if entry_key != key:
+            raise KeyError
+        return res
 
     def __contains__(self, key: K) -> bool:
         """
@@ -134,4 +175,26 @@ class InfiniteHashTable(Generic[K, V]):
         """
         Returns all keys currently in the table in lexicographically sorted order.
         """
-        raise NotImplementedError()
+        res = []
+        if current == None:
+            current_table = self
+        else:
+            current_table = current
+
+        # First check pos self.TABLE_SIZE - 1
+        if current_table.origin[current_table.TABLE_SIZE - 1] is not None and "*" not in current_table.origin[current_table.TABLE_SIZE - 1][0]:
+            res += [current_table.origin[current_table.TABLE_SIZE - 1][0]]
+
+        start_pos = ord('a') % (self.TABLE_SIZE - 1)
+        table_position = start_pos
+        for _ in range(current_table.TABLE_SIZE):
+            entry = current_table.origin[table_position]
+            # Ignore none and *last slot
+            if entry is not None and table_position != current_table.TABLE_SIZE - 1:
+                key, value = entry
+                if "*" in key:
+                    res += self.sort_keys(value)
+                else:
+                    res += [key]
+            table_position = (table_position + 1) % self.TABLE_SIZE
+        return res
