@@ -1,4 +1,8 @@
+"""
+Double Key Table class. A type of dictionary to store values with two keys.
+"""
 from __future__ import annotations
+__author__ = "Haru Le"
 
 from typing import Generic, TypeVar, Iterator
 from data_structures.hash_table import LinearProbeTable, FullError
@@ -21,16 +25,22 @@ class DoubleKeyTable(Generic[K1, K2, V]):
 
     Unless stated otherwise, all methods have O(1) complexity.
     """
-
     # No test case should exceed 1 million entries.
     TABLE_SIZES = [5, 13, 29, 53, 97, 193, 389, 769, 1543, 3079, 6151, 12289, 24593, 49157, 98317, 196613, 393241, 786433, 1572869]
 
     HASH_BASE = 31
 
     def __init__(self, sizes:list|None=None, internal_sizes:list|None=None) -> None:
+        """
+        Set up double key table.
+        :sizes: Array that stores possible sizes of the outer table.
+        :internal_sizes: Array that stores possible sizes of the inner table.
+        
+        :complexity: O(n)
+        Where n is the initial outer table size.
+        """
         # Element count is the number of elements in the top table only.
         self.elementCount = 0
-        double_key_table.py-implementation
         if sizes is not None:
             self.TABLE_SIZES = sizes
         self.size_index = 0
@@ -73,6 +83,12 @@ class DoubleKeyTable(Generic[K1, K2, V]):
 
         :raises KeyError: When the key pair is not in the table, but is_insert is False.
         :raises FullError: When a table is full and cannot be inserted.
+
+        :complexity best: O(hash1(key1) + hash2(key2))
+        :complexity worst: O(hash1(key1) + c1*comp(key1) + hash2(key2) + c2*comp(key2))
+        Where c1 and c2 are the max size primary clusters for outer and inner table respectively.
+        Best case: No need to linear probe through outer or inner table, and not creating linear probe table.
+        Worst case: Linear probe through outer and inner table, both with clusters of maximum size, and until the end of the cluster.
         """
         table_position = self.hash1(key1)
 
@@ -132,25 +148,28 @@ class DoubleKeyTable(Generic[K1, K2, V]):
         """
         key = None: returns all top-level keys in the table.
         key = x: returns all bottom-level keys for top-level key x.
+
+        :complexity best: O(n)
+        :complexity worst: O(hash1(key) + n*keys())
+        Where n is the size of the table and keys refers to LPT method.
         """
-        double_key_table.py-implementation
         if key == None:
             res = []
             for x in range(self.table_size):
-                if self.table[x] is not None:
-                    res.append(self.table[x][0])
+                table_entry = self.table[x]
+                if table_entry is not None:
+                    res.append(table_entry[0])
             return res
         else:
             table_position = self.hash1(key)
             for _ in range(self.table_size):
-                if self.table[table_position] is None:
+                table_entry = self.table[table_position]
+                if table_entry is None:
                     raise KeyError
-                elif self.table[table_position][0] == key:
-                    break
+                elif table_entry[0] == key:
+                    return table_entry[1].keys()
                 else:
                     table_position = (table_position + 1) % self.table_size
-            return self.table[table_position][1].keys()
-            # return self.table[self.table._linear_probe(key, False)].keys()
 
     def iter_values(self, key:K1|None=None) -> Iterator[V]:
         """
@@ -173,6 +192,12 @@ class DoubleKeyTable(Generic[K1, K2, V]):
         """
         key = None: returns all values in the table.
         key = x: returns all values for top-level key x.
+
+        :complexity best: O(hash1(key) + values())
+        :complexity worst: O(n*values()+m) 
+        Where n is the size of the table, values() refers to LPT method, and m is the number of values in total.
+        Best case: Finding values for one top-level key, linear probing ends in constant operation as it is the first element. 
+        Worst case: Adding all values from all top-level keys.
         """
         if key is None:
             res = []
@@ -185,13 +210,13 @@ class DoubleKeyTable(Generic[K1, K2, V]):
         else:
             table_position = self.hash1(key)
             for _ in range(self.table_size):
-                if self.table[table_position] is None:
+                table_entry = self.table[table_position]
+                if table_entry is None:
                     raise KeyError
-                elif self.table[table_position][0] == key:
-                    break
+                elif table_entry[0] == key:
+                    return table_entry[1].values()
                 else:
                     table_position = (table_position + 1) % self.table_size
-            return self.table[table_position][1].values()
 
     def __contains__(self, key: tuple[K1, K2]) -> bool:
         """
@@ -211,18 +236,19 @@ class DoubleKeyTable(Generic[K1, K2, V]):
         Get the value at a certain key
 
         :raises KeyError: when the key doesn't exist.
+        :complexity: See linear probe. 
         """
-        double_key_table.py-implementation
         key1, key2 = key
 
-        if self.__contains__(key):
-            table_position, sub_table_position = self._linear_probe(key1, key2, False)
-            return self.table[table_position][1].array[1]
-        raise KeyError(key1)
+        table_position, sub_table_position = self._linear_probe(key1, key2, False)
+        return self.table[table_position][1].array[1]
 
     def __setitem__(self, key: tuple[K1, K2], data: V) -> None:
         """
         Set an (key, value) pair in our hash table.
+        :complexity best: O(linear_probe(key1, key2, True))
+        :complexity worst: O(linear_probe(key1, key2, True) + rehash(top) + rehash(bottom))
+        Where linear_probe() refers to DKT method, rehash(top) refers to top rehash, and rehash(bottom) refers to bottom rehash.
         """
         key1, key2 = key
         table_position, sub_table_position = self._linear_probe(key1, key2, True)
@@ -241,6 +267,7 @@ class DoubleKeyTable(Generic[K1, K2, V]):
             # Updating data if both keys exist.
             elif sub_table.array[sub_table_position][0] == key2:
                 sub_table.array[sub_table_position] = (key2, data)
+    
         if len(self) > self.table_size / 2:
             self._rehash()
         # Sub tables won't rehash themselves because we're not using set_item of linearprobetable
@@ -252,6 +279,11 @@ class DoubleKeyTable(Generic[K1, K2, V]):
         Deletes a (key, value) pair in our hash table.
 
         :raises KeyError: when the key doesn't exist.
+
+        :complexity best: O(linear_probe(key1, key2, False))
+        :complexity worst:  O(linear_probe(key1, key2, False) + s*linear_probe(key2, True))
+        Where s refers to sub_table size, linear_probe() with two keys refers to DKT method, linear_probe(key2) refers to LPT method.
+        Assuming input is valid and errors do not occur.
         """
         key1, key2 = key
         table_position, sub_table_position = self._linear_probe(key1, key2, False)
@@ -264,6 +296,7 @@ class DoubleKeyTable(Generic[K1, K2, V]):
             if sub_table.is_empty():
                 self.table[table_position] = None
                 self.elementCount -= 1
+                return # No need to probe through sub table and re-insert, so leave.
         # Start moving over the cluster
         sub_table_position = (sub_table_position + 1) % sub_table.table_size
         # Accessing internal array is faster
@@ -279,9 +312,10 @@ class DoubleKeyTable(Generic[K1, K2, V]):
         """
         Need to resize table and reinsert all values
 
-        :complexity best: O(N*hash(K)) No probing.
-        :complexity worst: O(N*hash(K) + N^2*comp(K)) Lots of probing.
-        Where N is len(self)
+        :complexity best: O(n + m + t*hash(key)) No probing.
+        :complexity worst: O(n + m + t*(hash(key) + c1*comp(key1) + c2*comp(key2))) Lots of probing.
+        Where n is the size of the outer table, m is the size of the inner table, t is the total number of elements in the DKT (prev),
+        c1 is the size of the primary cluster in the outer table, c2 is the size of the primary cluster in the inner table.
         """
         old_table = self.table
         self.size_index += 1
