@@ -240,8 +240,16 @@ class DoubleKeyTable(Generic[K1, K2, V]):
         """
         key1, key2 = key
 
+        # if self.__contains__(key): 
+        # Cant have contains inside of getitem method as it makes recursive structure, infinite calls
+        # Contains should be used in a diff way. 
         table_position, sub_table_position = self._linear_probe(key1, key2, False)
-        return self.table[table_position][1].array[1]
+        entry = self.table[table_position]
+        entry_key, entry_value = entry
+        if type(entry_value) is LinearProbeTable:
+            value = entry_value.__getitem__(key2)
+        return value
+        # raise KeyError(key1)
 
     def __setitem__(self, key: tuple[K1, K2], data: V) -> None:
         """
