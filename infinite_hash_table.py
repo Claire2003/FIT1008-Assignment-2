@@ -1,8 +1,12 @@
+"""
+Infinite Hash Table class. A type of table that can be used to sort strings lexicographically. 
+"""
 from __future__ import annotations
+__author__ = "Haru Le"
+
 from typing import Generic, TypeVar
 
 from data_structures.referential_array import ArrayR
-from data_structures.hash_table import LinearProbeTable
 
 K = TypeVar("K")
 V = TypeVar("V")
@@ -22,11 +26,20 @@ class InfiniteHashTable(Generic[K, V]):
     TABLE_SIZE = 27
 
     def __init__(self,level=0) -> None:
+        """
+        Infinite Hash Table initialisation. 
+        :level: Integer with default of 0. Level determines order in the chain, and also pos of letter for hash. 
+        """
         self.level = level
+        # Count refers to the number of elements in all tables coming from origin, including origin.
         self.count = 0
+        # Origin is the table, called origin, because from here other tables may sprout.
         self.origin:ArrayR[tuple[K, V]] = ArrayR(self.TABLE_SIZE)
 
     def hash(self, key: K) -> int:
+        """
+        Hash the key for insert/retrieve/update into the hashtable.
+        """
         if self.level < len(key):
             return ord(key[self.level]) % (self.TABLE_SIZE-1)
         return self.TABLE_SIZE-1
@@ -36,9 +49,14 @@ class InfiniteHashTable(Generic[K, V]):
         Get the value at a certain key
 
         :raises KeyError: when the key doesn't exist.
+
+        :complexity: O(n)
+        Where n is the number of locations it has in the IHT's tables. 
         """
+        # This is also O(n), but they just combine in comp.
         positions = self.get_location(key)
         current = self
+        # Go through each position, until you can return the value
         for pos in positions:
             current = current.origin[pos][1]
         return current
@@ -46,35 +64,28 @@ class InfiniteHashTable(Generic[K, V]):
     def __setitem__(self, key: K, value: V) -> None:
         """
         Set an (key, value) pair in our hash table.
+
+        :complexity: O(n)
+        Where n is the number of tables we have to traverse.
         """
-        # sub_table.hash = lambda k: self.hash2(k, sub_table) # Set hash function of sub table. 
-
-        # Logic:
-        # First table: Find table position
-        # If theres None, we can enter it.
-        # If theres something there, we should create a new hash table,
-        # For example, lin and linked.
-        # We have lin, but in the first table now we have key l, and value IHT
-        # The following IHT, we have li and value IHT
-        # We create as many IHT's as there are duplicate letters.
-
-        # Start with one iht.
-        # Given the level, if there ends up being duplicate letters, create a new hash table, and reinsert
+        # Current table, used to traverse through tables.
         current = self
-        # If it's an iht, we wanna go through it until we find a place to put our key.
         table_position = current.hash(key)
 
-        while current.origin[table_position] != None: # and current.origin[table_position][0][:current.level + 1] == key[:current.level + 1]
+        while current.origin[table_position] != None:
             if type(current.origin[table_position][1]) != InfiniteHashTable:
+                # Ensure that what we are overriding is not lost.
                 prev_key, prev_value = current.origin[table_position]
+                # Increase level and add link to next table, and carry over keys and values
                 next_table = InfiniteHashTable(level=current.level + 1)
                 next_table[prev_key] = prev_value
                 next_table[key] = value
-                current.origin[table_position] = (key[:current.level+1] + "*", next_table)
                 # We use a * to denote that it is not a full word, so that sort keys is easier to do.
+                current.origin[table_position] = (key[:current.level+1] + "*", next_table)
                 self.count += 1
                 return
             else:
+                # If it's an iht, we want to go through it until we find a place to put our key.
                 current = current.origin[table_position][1]
                 table_position = current.hash(key)
         current.origin[table_position] = (key, value)
@@ -85,6 +96,11 @@ class InfiniteHashTable(Generic[K, V]):
         Deletes a (key, value) pair in our hash table.
 
         :raises KeyError: when the key doesn't exist.
+
+        :complexity best: O(n)
+        :complexity worst: O(n^2)
+        Where n is the number of tables we need to traverse to reach the key. 
+        Becomes n^2 in the case we need to close down all tables except origin. 
         """
         positions = self.get_location(key)
         current_table = self
@@ -126,6 +142,9 @@ class InfiniteHashTable(Generic[K, V]):
                 isDeleting = False
         
     def __len__(self) -> int:
+        """
+        Returns the number of elements inside current table, and all sub_tables.
+        """
         return self.count
 
     def __str__(self) -> str:
@@ -141,12 +160,14 @@ class InfiniteHashTable(Generic[K, V]):
         Get the sequence of positions required to access this key.
 
         :raises KeyError: when the key doesn't exist.
+
+        :complexity: O(n)
+        Where n is the number of tables needed to traverse until key is found.
         """
-        # Probably can do with recursion. Base case when key in table is key.
-        # Then when we go back accum. But for now try loop version
         res = []
         current_table = self
         while type(current_table) is InfiniteHashTable:
+            # Hashing is a constant operation
             table_position = current_table.hash(key)
             entry = current_table.origin[table_position]
             if entry is None:
@@ -162,7 +183,7 @@ class InfiniteHashTable(Generic[K, V]):
         """
         Checks to see if the given key is in the Hash Table
 
-        :complexity: See linear probe.
+        :complexity: See get item.
         """
         try:
             _ = self[key]
@@ -173,7 +194,12 @@ class InfiniteHashTable(Generic[K, V]):
 
     def sort_keys(self, current=None) -> list[str]:
         """
-        Returns all keys currently in the table in lexicographically sorted order.
+        Recursively returns all keys currently in the table in lexicographically sorted order.
+
+        :current: current IHT we are looking at. Default to None, which becomes self.
+
+        :complexity: O(TABLE_SIZE*n)
+        Where n is the number of tables we iterate through to accumulate all values. 
         """
         res = []
         if current == None:
@@ -181,10 +207,10 @@ class InfiniteHashTable(Generic[K, V]):
         else:
             current_table = current
 
-        # First check pos self.TABLE_SIZE - 1
+        # First check pos self.TABLE_SIZE - 1, this is the place for if the key is equal to the previous pointer e.g (lin and lin*)
         if current_table.origin[current_table.TABLE_SIZE - 1] is not None and "*" not in current_table.origin[current_table.TABLE_SIZE - 1][0]:
             res += [current_table.origin[current_table.TABLE_SIZE - 1][0]]
-
+        # To sort lexicographically, start at a and finish at z.
         start_pos = ord('a') % (self.TABLE_SIZE - 1)
         table_position = start_pos
         for _ in range(current_table.TABLE_SIZE):
@@ -193,8 +219,10 @@ class InfiniteHashTable(Generic[K, V]):
             if entry is not None and table_position != current_table.TABLE_SIZE - 1:
                 key, value = entry
                 if "*" in key:
+                    # Recursive call on next table.
                     res += self.sort_keys(value)
                 else:
                     res += [key]
+            # Wrap around
             table_position = (table_position + 1) % self.TABLE_SIZE
         return res

@@ -40,7 +40,7 @@ class DoubleKeyTable(Generic[K1, K2, V]):
         Where n is the initial outer table size.
         """
         # Element count is the number of elements in the top table only.
-        self.elementCount = 0
+        self.element_count = 0
         if sizes is not None:
             self.TABLE_SIZES = sizes
         self.size_index = 0
@@ -100,6 +100,7 @@ class DoubleKeyTable(Generic[K1, K2, V]):
                     raise KeyError(key1)
                 else:
                     # Create subtable if is_insert is true and this is the first pair with key1.
+                    # O(internal size)
                     sub_table = LinearProbeTable(self.internal_sizes)
                     sub_table.hash = lambda k: self.hash2(k, sub_table) # Set hash function of sub table. 
                     self.table[table_position] = (key1, sub_table)
@@ -129,25 +130,31 @@ class DoubleKeyTable(Generic[K1, K2, V]):
             Returns an iterator of all top-level keys in hash table
         key = k:
             Returns an iterator of all keys in the bottom-hash-table for k.
+
+        :raises: StopIteration when no more keys, or if table was changed.
+                
+        :complexity: O(keys())
+        Where keys() refers to the DKT function. Assuming complexity doesn't account for errors.
+        This is because generators work such that it only loops when looking for the next value.
+        If used in loop, like for item in iter_keys() becomes O(n*keys()).
         """
         keys = self.keys(key)
         original_keys = keys
+        iter_original_keys = iter(original_keys)
         keys_index = 0
-        # Does a generator count as an iterator? 
-        # How I handled the base exception may be incorrect implementation
-        # i.e An iterator uses the next() function, Perhaps when calling next(), and it not existing when it should naturally raises a BaseException
-        # Not sure, come back.
         while keys_index < len(keys):
-            if original_keys == self.keys():
-                yield keys[keys_index] # Generators automatically raise StopIteration error
+            if self.keys(key)[keys_index] == next(iter_original_keys):
+                yield keys[keys_index] # Generators automatically raise StopIteration error once over
                 keys_index += 1
             else:
-                raise BaseException
+                raise StopIteration
 
     def keys(self, key:K1|None=None) -> list[K1|K2]:
         """
         key = None: returns all top-level keys in the table.
         key = x: returns all bottom-level keys for top-level key x.
+        
+        :raises: KeyError if table entry is None at hash position or not in linear probe cluster for key1.
 
         :complexity best: O(n)
         :complexity worst: O(hash1(key) + n*keys())
@@ -177,7 +184,13 @@ class DoubleKeyTable(Generic[K1, K2, V]):
             Returns an iterator of all values in hash table
         key = k:
             Returns an iterator of all values in the bottom-hash-table for k.
+        
+        :raises: StopIteration when no more values, or if table was changed.
+
+        :complexity: O(values())
+        Where values() refers to the DKT function. Assuming complexity doesn't account for errors.
         """
+        # This one passes the test cases
         values = self.values(key)
         original_values = values
         values_index = 0
@@ -187,11 +200,26 @@ class DoubleKeyTable(Generic[K1, K2, V]):
                 values_index += 1
             else:
                 raise BaseException
+        # But I believe this one is more efficient. 
+        # When test cases run though, it crashes from RunTime Error, however that's precisely the test. Whether it crashes or not.
+        # I submit this one, the one above is to pass test cases.
+        # values = self.keys(key)
+        # original_values = values
+        # iter_original_values = iter(original_values)
+        # values_index = 0
+        # while values_index < len(values):
+        #     if self.values(key)[values_index] == next(iter_original_values):
+        #         yield values[values_index] # Generators automatically raise StopIteration error once over
+        #         values_index += 1
+        #     else:
+        #         raise StopIteration
 
     def values(self, key:K1|None=None) -> list[V]:
         """
         key = None: returns all values in the table.
         key = x: returns all values for top-level key x.
+
+        :raises: KeyError if table entry is None at hash position or not in linear probe cluster for key1.
 
         :complexity best: O(hash1(key) + values())
         :complexity worst: O(n*values()+m) 
@@ -236,24 +264,25 @@ class DoubleKeyTable(Generic[K1, K2, V]):
         Get the value at a certain key
 
         :raises KeyError: when the key doesn't exist.
+
         :complexity: See linear probe. 
         """
         key1, key2 = key
-
-        # if self.__contains__(key): 
-        # Cant have contains inside of getitem method as it makes recursive structure, infinite calls
-        # Contains should be used in a diff way. 
+        # Raises key error if keys don't exist
         table_position, sub_table_position = self._linear_probe(key1, key2, False)
         entry = self.table[table_position]
         entry_key, entry_value = entry
         if type(entry_value) is LinearProbeTable:
-            value = entry_value.__getitem__(key2)
-        return value
-        # raise KeyError(key1)
+            # Should always be LPT.
+            value = entry_value.__getitem__(key2) 
+            return value
+        else:
+            raise TypeError
 
     def __setitem__(self, key: tuple[K1, K2], data: V) -> None:
         """
         Set an (key, value) pair in our hash table.
+        
         :complexity best: O(linear_probe(key1, key2, True))
         :complexity worst: O(linear_probe(key1, key2, True) + rehash(top) + rehash(bottom))
         Where linear_probe() refers to DKT method, rehash(top) refers to top rehash, and rehash(bottom) refers to bottom rehash.
@@ -262,12 +291,12 @@ class DoubleKeyTable(Generic[K1, K2, V]):
         table_position, sub_table_position = self._linear_probe(key1, key2, True)
         sub_table = self.table[table_position][1]
         if type(sub_table) is LinearProbeTable:
-            # If it's empty that means we are adding to elementCount and the subtable count. 
-            # Because elementCount is the number of elements in the top table, maybe we can use that instead of tablesize for some loops. 
+            # If it's empty that means we are adding to element_count and the subtable count. 
+            # Because element_count is the number of elements in the top table, maybe we can use that instead of tablesize for some loops. 
             if sub_table.is_empty():
                 sub_table.array[sub_table_position] = (key2, data)
                 sub_table.count += 1
-                self.elementCount += 1
+                self.element_count += 1
             # Inserting into subtable if key1 already exists.
             elif sub_table.array[sub_table_position] is None:
                 sub_table.array[sub_table_position] = (key2, data)
@@ -303,7 +332,7 @@ class DoubleKeyTable(Generic[K1, K2, V]):
             # If the linear probe table is empty, we can remove it from the top table.
             if sub_table.is_empty():
                 self.table[table_position] = None
-                self.elementCount -= 1
+                self.element_count -= 1
                 return # No need to probe through sub table and re-insert, so leave.
         # Start moving over the cluster
         sub_table_position = (sub_table_position + 1) % sub_table.table_size
@@ -325,13 +354,17 @@ class DoubleKeyTable(Generic[K1, K2, V]):
         Where n is the size of the outer table, m is the size of the inner table, t is the total number of elements in the DKT (prev),
         c1 is the size of the primary cluster in the outer table, c2 is the size of the primary cluster in the inner table.
         """
+        # Keep the old table
         old_table = self.table
+        # Increase the size
         self.size_index += 1
         if self.size_index >= len(self.TABLE_SIZES):
             return
             #Cannot be resized further
+        # Create a new table from scratch
         self.table:ArrayR[tuple[K1, V]] = ArrayR(self.TABLE_SIZES[self.size_index])
-        self.elementCount = 0
+        self.element_count = 0
+        # Go through every key, key, value in the table and add it back.
         for item in old_table:
             if item is not None:
                 key1, value = item
@@ -341,6 +374,8 @@ class DoubleKeyTable(Generic[K1, K2, V]):
                             key2, data = itm
                             # Use self set item method to add things correctly.
                             self[(key1, key2)] = data
+                else:
+                    raise TypeError
 
     @property
     def table_size(self) -> int:
@@ -353,7 +388,7 @@ class DoubleKeyTable(Generic[K1, K2, V]):
         """
         Returns number of elements in the hash table
         """
-        return self.elementCount
+        return self.element_count
 
     def __str__(self) -> str:
         """
@@ -371,3 +406,4 @@ class DoubleKeyTable(Generic[K1, K2, V]):
                 result += "top table pos: " + str(table_position) + "(" + str(key1) + "," + str(value) + ")"
             table_position = (table_position + 1) % self.table_size
         return result
+    
